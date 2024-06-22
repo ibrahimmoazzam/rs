@@ -1,0 +1,71 @@
+{% extends "_base.html" %}
+{% block title %}
+Review Assignment
+{% endblock %}
+{% block css %}
+
+{% include 'common/static_assets.html' %}
+
+<link href="/staticAssets/index.css" rel="stylesheet" media="screen" />
+{% endblock %}
+{% block content %}
+
+{% include 'common/ebook_config.html' %}
+<div class="hidden-content" style="display: none">
+    \( {{ latex_preamble }} \)
+</div>
+<div id='part1'>
+    <h1 id="assignment_name" style='text-align:center'>{{ assignment_details.name }}</h1>
+    <h2 style='margin-left:1cm;'>Due: {{ assignment_details.due_date }}</h2>
+    <span style="float:right; margin-right:2cm;">
+        This assignment is {{ 'graded' if assignment_details.released else 'ungraded' }}
+    </span>
+    <div style='background-color:powderblue; margin-left:2cm; margin-right:2cm;'>
+        <p style='margin-left:0.5cm; margin-right:0.5cm;'>Description: {{ assignment_details.description }}</p>
+    </div>
+
+    {% if questions|length > 0 %}
+        <div id='questions' class="runestone-sphinx">
+            <style>
+                .ac_section > * {
+                    max-width: 100%;
+                }
+                #questions {
+                    max-width: 90%;
+                    margin-left: auto;
+                    margin-right: auto;
+                }
+            </style>
+            <h3>Questions</h3>
+            {% for q in questions %}
+                {% if q.comment != 'ungraded' %}
+                    <div style='float:right; width:30%;'>
+                    <h4 style='text-align:center;'>Score: {{ q.score }} / {{ q.points }}</h4>
+                    <p style='margin-left:2%;'>Comment: {{ q.comment }}</p>
+                    </div>
+                {% else %}
+                    <div style='float:right; width:10%;'>
+                    <h5 style='text-align:center;'>Not yet graded</h5>
+                    </div>
+                {% endif %}
+                {% if q.question_type == 'webwork' %}
+                <div class='oneq full-width runestone-sphinx ptx-content' id='{{ loop.index }}'>
+                {% else %}
+                <div class='oneq full-width runestone-sphinx' id='{{ loop.index }}'>
+                {% endif %}
+                    {{ q.htmlsrc|safe }}
+                </div>
+                <div class="oneq" style="width: 100%; text-align: center">
+                    {% if origin == "Runestone" %}
+                        <a href="/ns/books/published/{{ course }}/{{ q.chapter }}/{{ q.subchapter }}.html#{{ q.name }}">Question in Context</a>
+                    {% else %}
+                        <a href="/ns/books/published/{{ course }}/{{ q.subchapter }}.html#{{ q.name }}">Question in Context</a>
+                    {% endif %}
+                </div>
+                <hr>
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
+
+{% endblock %}

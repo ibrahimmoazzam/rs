@@ -1,7 +1,7 @@
 import datetime
 import pandas as pd
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Request, status, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import create_engine
@@ -25,6 +25,8 @@ from rsptx.db.crud import (
     reorder_assignment_questions,
     update_assignment_question,
     update_assignment,
+    fetch_one_assignment,
+    fetch_all_course_attributes,
 )
 from rsptx.auth.session import auth_manager, is_instructor
 from rsptx.templates import template_folder
@@ -43,6 +45,8 @@ from rsptx.validation.schemas import (
 )
 from rsptx.logging import rslogger
 
+from .student import get_course_url
+
 # Routing
 # =======
 # See `APIRouter config` for an explanation of this approach.
@@ -50,6 +54,132 @@ router = APIRouter(
     prefix="/instructor",
     tags=["instructor"],
 )
+
+@router.get("/reviewPeerAssignment")
+async def review_peer_assignment(
+    request: Request,
+    assignment_id: Optional[int] = None,
+    user=Depends(auth_manager),
+    RS_info: Optional[str] = Cookie(None),
+):
+    '''
+    This is the endpoint for reviewing a peer assignment. It is used by instructors to review peer assignments.
+    '''
+    # Fetch the course
+    course = await fetch_course(user.course_name)
+
+    if assignment_id is None:
+        rslogger.error("BAD ASSIGNMENT = %s assignment %s", course, assignment_id)
+        return RedirectResponse("/runestone/peer/instructor.html")
+
+    # Determine database URL based on server configuration
+    if settings.server_config == "development":
+        dburl = settings.dev_dburl
+    elif settings.server_config == "production":
+        dburl = settings.dburl
+    eng = create_engine(dburl)
+
+    # Check if the user is an instructor
+    user_is_instructor = await is_instructor(request, user=user)
+    if not user_is_instructor:
+        return JSONResponse(status_code=status.HTTP_401_UNAUTHORIZED, content={"detail": "not an instructor"})
+
+    # Fetch course attributes
+    course_attrs = await fetch_all_course_attributes(course.id)
+    course_origin = course_attrs.get("markup_system", "Runestone")
+
+    # Fetch assignment details
+    assignment = await fetch_one_assignment(assignment_id)
+
+    if not assignment:
+        rslogger.error(
+            "NO ASSIGNMENT assign_id = %s course = %s user = %s",
+            assignment_id,
+            course,
+            user.username,
+        )
+        return RedirectResponse("/runestone/peer/instructor.html")
+
+    if (
+        assignment.visible == "F"
+        or assignment.visible is None
+        or assignment.visible == False
+    ):
+        if not user_is_instructor:
+            rslogger.error(f"Attempt to access invisible assignment {assignment_id} by {user.username}")
+            return RedirectResponse("/assignment/student/chooseAssignment")
+
+    # Fetch questions within the assignment
+    questions = await fetch_assignment_questions(assignment_id)
+    questions_list = []
+
+    for q in questions:
+        # Gathering information about each question
+        if q.Question.htmlsrc:
+            # This replacement is to render images
+            bts = q.Question.htmlsrc
+            htmlsrc = bts.replace(
+                'src="../_static/', 'src="' + get_course_url(course, "_static/")
+            )
+            htmlsrc = htmlsrc.replace("../_images", get_course_url(course, "_images"))
+
+            # Rewrite xref links and knowls in fillintheblank questions
+            if "fillintheblank" in htmlsrc:
+                htmlsrc = htmlsrc.replace(
+                    'href="', f'href="/ns/books/published/{course.base_course}/'
+                )
+
+            # Unescape contents of script tags in fitb questions.
+            if "application/json" in htmlsrc:
+                htmlsrc = htmlsrc.replace("&lt;", "<")
+                htmlsrc = htmlsrc.replace("&gt;", ">")
+                htmlsrc = htmlsrc.replace("&amp;", "&")
+
+            if 'data-knowl="./' in htmlsrc:
+                htmlsrc = htmlsrc.replace(
+                    'data-knowl="./',
+                    f'data-knowl="/ns/books/published/{course.base_course}/',
+                )
+        else:
+            htmlsrc = None
+
+        question_info = {
+            "id": q.Question.id,
+            "name": q.Question.name,
+            "chapter": q.Question.chapter,
+            "subchapter": q.Question.subchapter,
+            "htmlsrc": htmlsrc,
+            "question_type": q.Question.question_type,
+            "points": q.AssignmentQuestion.points,
+            "activities_required": q.AssignmentQuestion.activities_required,
+            "reading_assignment": q.AssignmentQuestion.reading_assignment,
+        }
+        questions_list.append(question_info)
+
+    # Context dictionary to send in the JSON response
+    context = {
+        "message": f"Reviewing assignment {assignment_id}",
+        "course": course.course_name,
+        "user": user.username,
+        "request": request,
+        "assignment_details": {
+            "id": assignment.id,
+            "name": assignment.name,
+            "due_date": assignment.duedate,
+            "visible": assignment.visible,
+            "released": assignment.released,
+            "description": assignment.description,
+        },
+        "origin": course_origin,
+        "questions": questions_list
+    }
+
+    templates = Jinja2Templates(directory=template_folder)
+    response = templates.TemplateResponse(
+        "assignment/instructor/reviewPeerAssignment.html", context
+    )
+
+    return response
 
 
 @router.get("/gradebook")
