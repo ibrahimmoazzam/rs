@@ -68,7 +68,6 @@ class Settings(BaseSettings):
 
     # The path to store error logs.
     error_path: Path = Path(os.environ.get("BOOK_PATH", "/usr/books")) / "tickets"
-    rslogger.info(f"Error path is {error_path}")
 
     # Define the mode of operation for the webserver, taken from ``BookServerConfig```. This looks a bit odd, since the string value will be parsed by Pydantic into a Config.
     #
@@ -167,8 +166,8 @@ class Settings(BaseSettings):
                 with open(key_file, encoding="utf-8") as f:
                     return f.read().strip()
             else:
-                rslogger.error(
-                    "No Key file is found will default to settings.jwt_secret"
+                rslogger.warning(
+                    "No Key file OR WEB2PY_PRIVATE_KEY -  will default to settings.jwt_secret"
                 )
                 if type(self.jwt_secret) is bytes:
                     return self.jwt_secret.decode("utf-8")

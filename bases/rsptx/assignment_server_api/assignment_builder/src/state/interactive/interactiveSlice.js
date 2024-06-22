@@ -4,8 +4,8 @@
  * @description This file contains the slice for the active code editor. The slice manages the state of the active code editor.
  */
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
-import { addExercise, selectPoints, setPoints } from "../assignment/assignSlice.js";
-import { selectComponent } from "../componentEditor/editorSlice.js";
+import { addExercise, selectPoints, setId, setPoints } from "../assignment/assignSlice.js";
+
 
 import toast from "react-hot-toast";
 
@@ -28,7 +28,12 @@ export const saveAssignmentQuestion = createAsyncThunk(
         let preview_src = store.interactive.preview_src;
         let assignData = incoming.assignData;
         let assignmentId = assignData.id;
+        let editonly = incoming.editonly;
         let questionId = 0;
+        if (editonly || store.interactive.id) {
+            questionId = store.interactive.id;
+            editonly = true;
+        }
         let questionType = store.interactive.question_type;
         let jsheaders = new Headers({
             "Content-type": "application/json; charset=utf-8",
@@ -38,23 +43,35 @@ export const saveAssignmentQuestion = createAsyncThunk(
         // these names match the database columns
         let body = {
             name: store.interactive.uniqueId,
-            question: "This question was written in the web interface",
+            source: "This question was written in the web interface",
             question_type: store.interactive.question_type,
-            source: JSON.stringify(assignData),
             htmlsrc: preview_src,
-            question_json: JSON.stringify(store.interactive),
+            question_json: JSON.stringify(store.interactive.question_json),
+            chapter: store.interactive.chapter,
         };
+        if (editonly) {
+            body.id = questionId;
+        }
         if (questionType === "activecode" && store.acEditor.suffix_code) {
             body.autograde = 'unittest'
         } else {
-            body.autograde = 'manual'
+            if (questionType === "activecode") {
+                body.autograde = 'manual'
+            } else {
+                body.autograde = null;
+            }
         }
         let data = {
             body: JSON.stringify(body),
             headers: jsheaders,
             method: "POST",
         };
-        let resp = await fetch("/assignment/instructor/new_question", data);
+        let resp;
+        if (editonly) {
+            resp = await fetch("/assignment/instructor/update_question", data);
+        } else {
+            resp = await fetch("/assignment/instructor/new_question", data);
+        }
         if (!resp.ok) {
             let result = await resp.json();
             console.log("Failed to create question", result.detail);
@@ -65,7 +82,12 @@ export const saveAssignmentQuestion = createAsyncThunk(
         if (result.detail.status === "success") {
             console.log("Question created");
             questionId = result.detail.id;
+            dispatch(setDBId(questionId));
 
+        }
+        if (editonly) {
+            toast("Question saved", { icon: "👍" })
+            return;
         }
         let aqBody = {
             assignment_id: assignmentId,
@@ -173,6 +195,9 @@ const interactiveSlice = createSlice({
             state.question_json = action.payload.question_json;
             state.topic = action.payload.topic;
             state.difficulty = action.payload.difficulty;
+        },
+        setDBId: (state, action) => {
+            state.id = action.payload;
         }
     },
     extraReducers(builder) {
@@ -203,6 +228,7 @@ export const {
     setQuestionJson,
     setTopic,
     setDifficulty,
+    setDBId,
 } = interactiveSlice.actions;
 
 export const selectUniqueId = (state) => state.interactive.uniqueId;

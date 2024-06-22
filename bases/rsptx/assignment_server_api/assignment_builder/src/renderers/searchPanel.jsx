@@ -9,6 +9,7 @@ import { DataTable } from 'primereact/datatable';
 import { Column } from 'primereact/column';
 import Preview from './preview';
 import PropTypes from 'prop-types';
+import toast from "react-hot-toast";
 import { setComponent } from '../state/componentEditor/editorSlice';
 import { Accordion, AccordionTab } from 'primereact/accordion';
 import { setACFields } from '../state/activecode/acSlice';
@@ -25,7 +26,7 @@ import {
     sumPoints,
 } from '../state/assignment/assignSlice';
 
-import { setQuestion } from '../state/interactive/interactiveSlice';
+import { setQuestion, setPreviewSrc } from '../state/interactive/interactiveSlice';
 import { setExerciseDefaults } from '../exUtils';
 import { OverlayPanel } from 'primereact/overlaypanel';
 import { EditorContainer } from './editorModeChooser';
@@ -191,13 +192,15 @@ export function SearchResults() {
 
         const toggleEditor = (e) => {
             if ( !exercise.question_json) {
+                toast("No question to edit", { icon: "🚫" })
                 return null;
             }
             dispatch(setQuestion(exercise));
             dispatch(setComponent(exercise.question_type))
+            dispatch(setPreviewSrc(exercise.htmlsrc));
             if (exercise.question_type === "activecode") {
                 dispatch(setACFields(exercise.question_json));
-            } else if (exercise.question_type === "multiplechoice") {
+            } else if (exercise.question_type === "mchoice" || exercise.question_type === "multiplechoice") {
                 dispatch(setMCFields(exercise.question_json));
             }
             op.current.toggle(e);
@@ -207,7 +210,7 @@ export function SearchResults() {
             <>
                 <Button icon="pi pi-cog" rounded text type="button" severity="secondary" onClick={toggleEditor} />
                 <OverlayPanel ref={op} dismissable={false} showCloseIcon>
-                    <EditorContainer exercise={exercise.question_type} />
+                    <EditorContainer exercise={exercise.question_type} editonly={true} />
                 </OverlayPanel>
             </>
         );

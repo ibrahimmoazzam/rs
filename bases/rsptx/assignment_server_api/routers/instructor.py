@@ -1,4 +1,5 @@
 import datetime
+import pathlib
 import pandas as pd
 
 from fastapi import APIRouter, Depends, Request, status, Cookie
@@ -16,6 +17,7 @@ from rsptx.db.crud import (
     fetch_assignments,
     fetch_questions_by_search_criteria,
     fetch_question_count_per_subchapter,
+    fetch_all_course_attributes,
     create_assignment_question,
     create_question,
     fetch_course,
@@ -25,13 +27,18 @@ from rsptx.db.crud import (
     reorder_assignment_questions,
     update_assignment_question,
     update_assignment,
+    update_question,
     fetch_one_assignment,
     fetch_all_course_attributes,
 )
 from rsptx.auth.session import auth_manager, is_instructor
 from rsptx.templates import template_folder
 from rsptx.configuration import settings
-from rsptx.response_helpers.core import make_json_response
+from rsptx.response_helpers.core import (
+    make_json_response,
+    get_webpack_static_imports,
+    get_react_imports,
+)
 from rsptx.db.models import (
     AssignmentQuestionValidator,
     AssignmentValidator,
@@ -362,8 +369,7 @@ async def new_question(
     new_question = QuestionValidator(
         **request_data.model_dump(),
         base_course=course.base_course,
-        chapter="test",
-        subchapter="test",
+        subchapter="Exercises",
         timestamp=datetime.datetime.utcnow(),
         is_private=False,
         practice=False,
@@ -383,6 +389,46 @@ async def new_question(
     return make_json_response(
         status=status.HTTP_201_CREATED, detail={"status": "success", "id": q.id}
     )
+
+
+@router.post("/update_question")
+async def do_update_question(
+    request: Request,
+    request_data: QuestionIncoming,
+    user=Depends(auth_manager),
+    response_class=JSONResponse,
+):
+    user_is_instructor = await is_instructor(request, user=user)
+    if not user_is_instructor:
+        return make_json_response(
+            status=status.HTTP_401_UNAUTHORIZED, detail="not an instructor"
+        )
+    course = await fetch_course(user.course_name)
+    rslogger.debug(f"Updating question: {request_data}")
+    req = request_data.model_dump()
+    req["question"] = req["source"]
+    del req["source"]
+    upd_question = QuestionValidator(
+        **req,
+        base_course=course.base_course,
+        subchapter="Exercises",
+        timestamp=datetime.datetime.utcnow(),
+        is_private=False,
+        practice=False,
+        from_source=False,
+        review_flag=False,
+        author=user.first_name + " " + user.last_name,
+    )
+
+    try:
+        await update_question(upd_question)
+    except Exception as e:
+        rslogger.error(f"Error updating question: {e}")
+        return make_json_response(
+            status=status.HTTP_400_BAD_REQUEST,
+            detail=f"Error updating question: {str(e)}",
+        )
+    return make_json_response(status=status.HTTP_200_OK, detail={"status": "success"})
 
 
 @router.post("/new_assignment_q")
@@ -630,3 +676,50 @@ async def search_questions(
         qlist.append(row.model_dump())
     rslogger.debug(f"qlist: {qlist}")
     return make_json_response(status=status.HTTP_200_OK, detail={"questions": qlist})
+
+
+@router.get("/builder")
+async def get_builder(
+    request: Request, user=Depends(auth_manager), response_class=HTMLResponse
+):
+    # get the course
+    course = await fetch_course(user.course_name)
+
+    user_is_instructor = await is_instructor(request, user=user)
+    if not user_is_instructor:
+        return RedirectResponse(url="/")
+
+    reactdir = pathlib.Path(__file__).parent.parent / "react"
+    templates = Jinja2Templates(directory=template_folder)
+    wp_imports = get_webpack_static_imports(course)
+    react_imports = get_react_imports(reactdir)
+    course_attrs = await fetch_all_course_attributes(course.id)
+
+    return templates.TemplateResponse(
+        "assignment/instructor/builder.html",
+        {
+            "course": course,
+            "user": user.username,
+            "request": request,
+            "is_instructor": user_is_instructor,
+            "student_page": False,
+            "wp_imports": wp_imports,
+            "react_imports": react_imports,
+            "settings": settings,
+            "latex_preamble": course_attrs.get("latex_macros", ""),
+            "ptx_js_version": course_attrs.get("ptx_js_version", "0.2"),
+            "webwork_js_version": course_attrs.get("webwork_js_version", "2.17"),
+            "user": user,
+        },
+    )
+
+    # with open(reactdir / "index.html") as f:
+    #     content = f.read()
+    # return HTMLResponse(content=content)
+
+
+@router.get("/grader")
+async def get_grader(
+    request: Request, user=Depends(auth_manager), response_class=HTMLResponse
+):
+    return await get_builder(request, user, response_class)
