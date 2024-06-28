@@ -40,18 +40,18 @@ Review Assignment
             {% for q in questions %}
                 {% if q.comment != 'ungraded' %}
                     <div style='float:right; width:30%;'>
-                    <h4 style='text-align:center;'>Score: {{ q.score }} / {{ q.points }}</h4>
-                    <p style='margin-left:2%;'>Comment: {{ q.comment }}</p>
+                        <h4 style='text-align:center;'>Score: {{ q.score }} / {{ q.points }}</h4>
+                        <p style='margin-left:2%;'>Comment: {{ q.comment }}</p>
                     </div>
                 {% else %}
                     <div style='float:right; width:10%;'>
-                    <h5 style='text-align:center;'>Not yet graded</h5>
+                        <h5 style='text-align:center;'>Not yet graded</h5>
                     </div>
                 {% endif %}
                 {% if q.question_type == 'webwork' %}
-                <div class='oneq full-width runestone-sphinx ptx-content' id='{{ loop.index }}'>
+                    <div class='oneq full-width runestone-sphinx ptx-content' id='{{ loop.index }}'>
                 {% else %}
-                <div class='oneq full-width runestone-sphinx' id='{{ loop.index }}'>
+                    <div class='oneq full-width runestone-sphinx' id='{{ loop.index }}'>
                 {% endif %}
                     {{ q.htmlsrc|safe }}
                 </div>
