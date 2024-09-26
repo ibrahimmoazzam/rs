@@ -79,27 +79,27 @@ function renderFeedback(question, feedbackText) {
     }
 }
 
-function showQuestion(index) {
-    const prevButton = document.getElementById(`prev-btn-${index+1}`);
-    const nextButton = document.getElementById(`next-btn-${index+1}`);
+function showAllAtOnce() {
+    console.log("All at Once");
+}
 
+function showLinear() {
+    console.log("Linear");
+}
+
+function showQuestion(index) {
     renderQuestion(index);
 
     questions.forEach((question, i) => {
         question.style.display = i === index ? "block" : "none";
     });
-    if (prevButton && nextButton) {
-        if (currentQuestionIndex === 0) {
-            prevButton.disabled = true;
-        } else {
-            prevButton.disabled = false;
-        }
 
-        if (currentQuestionIndex === questions.length - 1) {
-            nextButton.disabled = true;
-        } else {
-            nextButton.disabled = false;
-        }
+    const prevButton = document.getElementById(`prev-btn-${index+1}`);
+    const nextButton = document.getElementById(`next-btn-${index+1}`);
+
+    if (prevButton && nextButton) {
+        prevButton.disabled = currentQuestionIndex === 0;
+        nextButton.disabled = currentQuestionIndex === questions.length - 1;
     }
 }
 
@@ -210,9 +210,25 @@ function renderAltairChart(containerId, data, title) {
     vegaEmbed(`#${containerId}`, spec, { actions: false });
 }
 
+function toggleQuestionsView() {
+    const allAtOnce = document.getElementById("all-at-once-button").checked;
+
+    if (allAtOnce) {
+        questions.forEach(question => question.style.display = "block");
+        document.querySelectorAll(".btn-group").forEach(btnGroup => btnGroup.style.display = "none");
+    } else {
+        questions.forEach((question, i) => question.style.display = i === currentQuestionIndex ? "block" : "none");
+        document.querySelectorAll(".btn-group").forEach(btnGroup => btnGroup.style.display = "block");
+    }
+}
+
 // Have to divide this code into functions
 document.addEventListener("DOMContentLoaded", () => {
     questionsData = JSON.parse(document.getElementById("questions-data").textContent);
+
+    // Event listeners for the layout of the questions
+    document.getElementById("all-at-once-button").addEventListener("change", toggleQuestionsView);
+    document.getElementById("linear-button").addEventListener("change", toggleQuestionsView);
 
     questionsData.forEach((q, index) => {
         const questionIndex = index + 1;

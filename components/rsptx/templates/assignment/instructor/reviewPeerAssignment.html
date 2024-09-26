@@ -8,6 +8,10 @@ Review Peer Assignment
 
 <link href="/staticAssets/index.css" rel="stylesheet" media="screen" />
 <style>
+    /* This is used to style the questions layout */
+    .questions-layout {
+        display: flex;
+    }
     /* This is used to style the question controls */
     .question-controls {
         display: flex;
@@ -76,6 +80,14 @@ Review Peer Assignment
                     margin-right: auto;
                 }
             </style>
+            {% if questions|length > 1 %}
+                <div class="row" style="text-align: center;">
+                    <div class="questions-layout mb-3">
+                        <button id="linear-btn" class="btn btn-primary" onclick="showAllAtOnce()">All at Once</button>
+                        <button id="all-at-once-btn" class="btn btn-primary" onclick="showLinear()">Linear</button>
+                    </div>
+                </div>
+            {% endif %}
             {% for q in questions %}
                 <div class="row question-row" id="question-{{ loop.index }}" style="display: none;">
                     <div class="question-controls mb-3">
