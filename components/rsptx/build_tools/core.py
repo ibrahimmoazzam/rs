@@ -38,6 +38,7 @@ from sqlalchemy.sql import text
 from rsptx.logging import rslogger
 from runestone.server import get_dburl
 from rsptx.db.models import Library, LibraryValidator
+from rsptx.response_helpers.core import canonical_utcnow
 
 rslogger.setLevel("WARNING")
 
@@ -243,7 +244,9 @@ def check_project_ptx(click=click, course=None):
         click.echo(f"Error course: {course} does not match document-id: {docid}")
         return False
 
-    if proj.output_dir.resolve().parts[-2] != course:
+    # This used to be .resolve but that resolves symlinks which foil
+    # our trick of symlinking into a repo that contains a book to build
+    if proj.output_dir.absolute().parts[-2] != course:
         click.echo(
             f"Project directory does not match course name: {course} they must match!"
         )
@@ -338,7 +341,7 @@ def update_library(
         click.echo("Missing library table?  You may need to run an alembic migration.")
         return False
     # using the Model rather than raw sql ensures that everything is properly escaped
-    build_time = datetime.datetime.utcnow()
+    build_time = canonical_utcnow()
     click.echo(f"BUILD time is {build_time}")
     if res.rowcount == 0:
         new_lib = LibraryValidator(

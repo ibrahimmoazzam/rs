@@ -129,6 +129,7 @@ function connect(event) {
                     $(".runestone [type=checkbox]").prop("checked", false);
                     break;
                 case "enableNext":
+                    console.log("Got enableNext message");
                     // This moves the student to the next question in the assignment
                     // first disable the handler to prevent leaving the page.
                     $(window).off("beforeunload");
@@ -162,7 +163,9 @@ function connect(event) {
                 case "enableFaceChat":
                     console.log("got enableFaceChat message");
                     let facechat = document.getElementById("group_select_panel");
-                    facechat.style.display = "block";
+                    if (facechat) {
+                        facechat.style.display = "block";
+                    }
                 default:
                     console.log("unknown control message");
             }
@@ -303,7 +306,10 @@ function warnAndStopVote(event) {
     } else {
         let butt = document.querySelector("#vote3");
         butt.classList.replace("btn-info", "btn-secondary");
-        document.querySelector("#nextq").disabled = false;
+        // done will be true when we are on the last question
+        if (!done) {
+            document.querySelector("#nextq").disabled = false;
+        }
         let sendScore = document.querySelector("#sendScores");
         if (sendScore) {
             sendScore.disabled = false;
@@ -313,6 +319,11 @@ function warnAndStopVote(event) {
 }
 
 async function makePartners() {
+    // first make sure there are enough votes to make pairs
+    if (answerCount < 2) {
+        alert("Not enough votes to make groups");
+        return;
+    }
     let butt = document.querySelector("#makep");
     butt.classList.replace("btn-info", "btn-secondary");
     let gs = document.getElementById("groupsize").value;
@@ -352,6 +363,8 @@ async function enableFaceChat(event) {
         course_name: eBookConfig.course,
     };
     publishMessage(mess);
+    let faceChatButton = document.querySelector("#facechat");
+    faceChatButton.disabled = true;
 
 }
 
@@ -381,6 +394,8 @@ function startVote2(event) {
 
     // Enabling the "Stop Vote 2" button once Vote 2 begins
     document.querySelector("#vote3").disabled = false;
+    let counterel = document.querySelector("#counter2");
+    counterel.innerHTML = "<p>Vote 2 Answers: 0</p>";
 }
 
 async function clearPartners(event) {
@@ -557,9 +572,10 @@ async function setupPeerGroup() {
     try {
         let response = await fetch(request);
         if (!response.ok) {
-            throw new Error("Failed to save the log entry");
+            console.error(`Failed to get the student list for groups! ${response.statusText}`);
+        } else {
+            studentList = await response.json();
         }
-        studentList = await response.json();
     } catch (e) {
         console.log(`Error: ${e}`);
     }
@@ -574,7 +590,7 @@ async function setupPeerGroup() {
             peerList = "";
         }
         opt.value = sid;
-        opt.innerHTML = studentList[sid];
+        opt.innerHTML = `${studentList[sid]} (${sid})`;
         if (peerList.indexOf(sid) > -1) {
             opt.selected = true;
         }

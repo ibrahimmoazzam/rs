@@ -8,7 +8,7 @@
 # given a competency it will select a random question from all questions that
 # test for that competency.
 
-# Copyright (C) 2021  Runestone Interactive LLC
+# Copyright (C) 2021  Runestone Academy LLC
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -70,13 +70,17 @@ def setup(app):
 class GroupSubmission(RunestoneDirective):
     """
     .. groupsub:: uniqueid
+       :optional:
        :limit: int
        :question_list:
 
+
     For a POGIL or groupwork page to allow one partner to submit answers
     to all questions on the page for everyone in the group.
+    :limit: sets the maximum group size.
     Question list is an anticipated extension that will allow the author
     to specify a list of questions rather than assuming all.
+    The ``:optional:`` flag should almost always be set!!
     """
 
     required_arguments = 1

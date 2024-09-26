@@ -148,6 +148,7 @@ def _get_numbered_question(assignment_id, qnum):
     done = "false"
     if qnum > len(a_qs) - 1:
         qnum = len(a_qs) - 1
+    if qnum == len(a_qs) - 1:
         done = "true"
 
     current_question_id = a_qs[qnum].question_id
@@ -284,7 +285,7 @@ def num_answers():
         & (db.mchoice_answers.course_name == auth.user.course_name)
         & (db.mchoice_answers.timestamp > parse(request.vars.start_time))
     ).count(distinct=db.mchoice_answers.sid)
-    # TODO update this to count the number of sendmessage events since start time for this question
+
     mess_count = db(
         (db.useinfo.div_id == div_id)
         & (db.useinfo.course_id == auth.user.course_name)
@@ -402,6 +403,7 @@ def make_pairs():
         peeps.remove(auth.user.username)
     random.shuffle(peeps)
     group_list = []
+    done = len(peeps) == 0
     while not done:
         group = [peeps.pop()]
         for i in range(group_size - 1):
@@ -427,9 +429,9 @@ def make_pairs():
     for k, v in gdict.items():
         r.hset(f"partnerdb_{auth.user.course_name}", k, json.dumps(v))
     r.hset(f"{auth.user.course_name}_state", "mess_count", "0")
-    logger.debug(f"DONE makeing pairs for {auth.user.course_name} {gdict}")
+    logger.info(f"DONE makeing pairs for {auth.user.course_name} {gdict}")
     _broadcast_peer_answers(sid_ans)
-    logger.debug(f"DONE broadcasting pair information")
+    logger.info(f"DONE broadcasting pair information")
     return json.dumps("success")
 
 
@@ -474,8 +476,8 @@ def publish_message():
     response.headers["content-type"] = "application/json"
     r = redis.from_url(os.environ.get("REDIS_URI", "redis://redis:6379/0"))
     data = json.dumps(request.vars)
-    logger.debug(
-        f"PM data = {data} {os.environ.get('REDIS_URI', 'redis://redis:6379/0')}"
+    logger.info(
+        f"PEERCOM data = {data} {os.environ.get('REDIS_URI', 'redis://redis:6379/0')}"
     )
     r.publish("peermessages", data)
     res = r.hget(f"{auth.user.course_name}_state", "mess_count")
@@ -648,6 +650,7 @@ def _get_user_messages(user, div_id, course_name):
     mess += "</ul>"
 
     return mess, participants
+
 
 @auth.requires(
     lambda: verifyInstructorStatus(auth.user.course_id, auth.user),

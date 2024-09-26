@@ -40,6 +40,7 @@ from rsptx.db.crud import (
     create_library_book,
     create_user_course_entry,
     delete_user,
+    fetch_all_course_attributes,
     fetch_course,
     fetch_courses_for_user,
     fetch_course_instructors,
@@ -63,6 +64,7 @@ from rsptx.configuration import settings
 from rsptx.build_tools.core import _build_runestone_book, _build_ptx_book
 from rsptx.cl_utils.core import load_project_dotenv
 from rsptx.data_extract import Anonymizer
+from rsptx.response_helpers.core import canonical_utcnow
 
 
 class Config(object):
@@ -462,6 +464,7 @@ async def adduser(
         # if fromfile then be sure to get the full path name NOW.
         # csv file should be username, email first_name, last_name, password, course
         # users from a csv cannot be instructors
+        course = None
         for line in csv.reader(fromfile):
             if len(line) != 6:
                 click.echo("Not enough data to create a user.  Lines must be")
@@ -470,16 +473,18 @@ async def adduser(
             if "@" not in line[1]:
                 click.echo("emails should have an @ in them in column 2")
                 exit(1)
+            if course is None:
+                course = await fetch_course(line[5])
             newUser = AuthUserValidator(
                 username=line[0],
                 password=line[4],
                 first_name=line[2],
                 last_name=line[3],
                 email=line[1],
-                course=line[5],
+                course_name=line[5],
                 instructor=False,
-                created_on=datetime.datetime.utcnow(),
-                modified_on=datetime.datetime.utcnow(),
+                created_on=canonical_utcnow(),
+                modified_on=canonical_utcnow(),
                 registration_key="",
                 registration_id="",
                 reset_password_key="",
@@ -515,8 +520,8 @@ async def adduser(
         course = await fetch_course(userinfo["course_name"])
         new_user = AuthUserValidator(
             **userinfo,
-            created_on=datetime.datetime.utcnow(),
-            modified_on=datetime.datetime.utcnow(),
+            created_on=canonical_utcnow(),
+            modified_on=canonical_utcnow(),
             registration_key="",
             registration_id="",
             reset_password_key="",
@@ -800,6 +805,28 @@ async def addattribute(config, course, attr, value):
         click.echo(f"Can only have one attribute {attr} per course")
 
     click.echo("Success")
+
+
+@cli.command()
+@click.argument("course", default=None)
+@pass_config
+async def showattrs(config, course):
+    """
+    Show all attributes for a course
+
+    """
+    course = course or click.prompt("Name of the course ")
+
+    res = await fetch_course(course)
+    if res:
+        course_id = res.id
+    else:
+        print("Sorry, that course does not exist")
+        sys.exit(-1)
+
+    attr_dict = await fetch_all_course_attributes(course_id)
+    for key in attr_dict:
+        print(key, attr_dict[key])
 
 
 @cli.command()

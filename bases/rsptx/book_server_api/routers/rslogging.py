@@ -11,7 +11,6 @@
 # Standard library
 # ----------------
 import json
-from datetime import datetime, timezone
 import re
 from typing import Optional
 
@@ -48,6 +47,7 @@ from rsptx.db.crud import (
     fetch_chapter_for_subchapter,
     fetch_course,
     fetch_course_practice,
+    fetch_source_code,
     fetch_user_chapter_progress,
     fetch_user_sub_chapter_progress,
     fetch_user,
@@ -55,12 +55,13 @@ from rsptx.db.crud import (
     update_sub_chapter_progress,
     update_user_state,
 )
-from rsptx.grading_helpers import grade_submission
-from rsptx.response_helpers.core import make_json_response
+from rsptx.grading_helpers import grade_submission, score_reading_page
+from rsptx.response_helpers.core import make_json_response, canonical_utcnow
 from rsptx.db.models import (
     AuthUserValidator,
     CodeValidator,
     runestone_component_dict,
+    SourceCodeValidator,
     UseinfoValidation,
 )
 from rsptx.validation.schemas import (
@@ -69,6 +70,7 @@ from rsptx.validation.schemas import (
     LogItemIncoming,
     LogRunIncoming,
     TimezoneRequest,
+    ReadingAssignmentSpec,
 )
 from rsptx.auth.session import auth_manager
 from rsptx.practice.core import potentially_change_flashcard
@@ -115,7 +117,7 @@ async def log_book_event(
         rslogger.info(f"user {user.username} is submitting work for {entry.sid}")
 
     # Always use the server's time.
-    entry.timestamp = datetime.utcnow()
+    entry.timestamp = canonical_utcnow()
     # The endpoint receives a ``course_name``, but the ``useinfo`` table calls this ``course_id``. Rename it.
     useinfo_dict = entry.dict()
     useinfo_dict["course_id"] = useinfo_dict.pop("course_name")
@@ -243,8 +245,7 @@ async def runlog(request: Request, response: Response, data: LogRunIncoming):
     edit_distance = useinfo_dict.pop("editDist", None)
     cps = useinfo_dict.pop("changesPerSecond", None)
     useinfo_dict["course_id"] = useinfo_dict.pop("course")
-    utcnow = datetime.now(timezone.utc)
-    utcnow = utcnow.replace(tzinfo=None)
+    utcnow = canonical_utcnow()
     useinfo_dict["timestamp"] = utcnow
     useinfo_dict["emessage"] = data.errinfo
     if data.errinfo != "success":
@@ -350,7 +351,7 @@ async def updatelastpage(
             lpd["last_page_chapter"] = parts[-2]
 
         lpd["last_page_subchapter"] = subchapter
-        lpd["last_page_accessed_on"] = datetime.utcnow()
+        lpd["last_page_accessed_on"] = canonical_utcnow()
         lpd["user_id"] = request.state.user.id
 
         lpdo: LastPageData = LastPageData(**lpd)
@@ -563,3 +564,42 @@ async def create_upload_file(request: Request, file: UploadFile, div_id: str):
     )
 
     return {"filename": file.filename}
+
+
+@router.post("/update_reading_score")
+async def update_reading_score(request: Request, data: ReadingAssignmentSpec):
+    if not request.state.user:
+        raise HTTPException(401)
+    rslogger.debug(f"Updating reading score for {request.state.user.username}")
+    rslogger.debug(data)
+    score = await score_reading_page(data, request.state.user)
+    return make_json_response(detail="Success")
+
+
+@router.get("/get_datafile")
+async def get_datafile(
+    request: Request,
+    course_id: str,
+    acid: str,
+    response_class=JSONResponse,
+):
+    """
+    Get the source code for a given resource id (acid) in a given course.
+    Normally these are datafiles that are stored here.
+
+    This API does not require a user to be logged in.
+
+    returns: JSONResponse - file contents
+    """
+    course = await fetch_course(course_id)
+
+    file_contents = await fetch_source_code(
+        acid, course.base_course, course.course_name
+    )
+
+    if file_contents:
+        file_contents = file_contents.main_code
+    else:
+        file_contents = None
+
+    return make_json_response(detail=file_contents)

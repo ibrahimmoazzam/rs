@@ -14,6 +14,7 @@ from decimal import Decimal, ROUND_HALF_UP
 # -------------------
 from psycopg2 import IntegrityError
 from gluon import current
+import pydal
 
 # Local imports
 # -------------
@@ -53,7 +54,7 @@ def _score_from_pct_correct(pct_correct: int, points, autograde):
     # ALL_AUTOGRADE_OPTIONS = ['all_or_nothing', 'pct_correct', 'interact']
     if points is None:
         points = 0
-    if autograde == "interact" or autograde == "visited":
+    if autograde in ["interact", "interaction", "visited"]:
         return points
     elif autograde == "pct_correct":
         # prorate credit based on percentage correct
@@ -73,7 +74,7 @@ def _score_from_pct_correct(pct_correct: int, points, autograde):
 def _score_one_code_run(row, points, autograde):
     # row is one row from useinfo table
     # second element of act is the percentage of tests that passed
-    if autograde == "interact":
+    if autograde == "interact" or autograde == "interaction":
         return _score_one_interaction(row, points, autograde)
 
     try:
@@ -110,6 +111,11 @@ def _score_peer_instruction(rows, points, autograde):
     has_vote1 = 0
     has_vote2 = 0
     sent_message = 0
+    logger.debug(f"PEER Scoring: rows = {rows}")
+    if type(rows) is not pydal.objects.Rows:
+        logger.error(f"PEER: rows is not a Rows object: {rows}")
+        return 0
+
     for row in rows:
         if "vote1" in row.act:
             has_vote1 = 1
@@ -798,7 +804,7 @@ def _autograde_one_q(
 
     elif question_type == "codelens":
         if (
-            autograde == "interact"
+            autograde == "interact" or autograde == "interaction"
         ):  # this is probably what we want for *most* codelens it will not be correct when it is an actual codelens question in a reading
             results = _scorable_useinfos(
                 course_name,
@@ -1071,7 +1077,7 @@ def _try_to_send_lti_grade(student_row_num, assignment_id):
         if not grade:
             current.session.flash = (
                 "Failed to find grade object for user {} and assignment {}".format(
-                    auth.user.id, assignment_id
+                    student_row_num, assignment_id
                 )
             )
             return False

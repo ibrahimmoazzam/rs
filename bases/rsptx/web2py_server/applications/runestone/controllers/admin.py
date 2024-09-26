@@ -46,6 +46,7 @@ AUTOGRADE_POSSIBLE_VALUES = dict(
     dragndrop=["manual", "all_or_nothing", "pct_correct", "interact"],
     external=[],
     fillintheblank=ALL_AUTOGRADE_OPTIONS,
+    groupsub=[],
     khanex=ALL_AUTOGRADE_OPTIONS,
     hparsons=ALL_AUTOGRADE_OPTIONS,
     lp_build=ALL_AUTOGRADE_OPTIONS,
@@ -88,6 +89,7 @@ WHICH_TO_GRADE_POSSIBLE_VALUES = dict(
     dragndrop=ALL_WHICH_OPTIONS,
     external=[],
     fillintheblank=ALL_WHICH_OPTIONS,
+    groupsub=[],
     hparsons=ALL_WHICH_OPTIONS,
     khanex=ALL_WHICH_OPTIONS,
     lp_build=ALL_WHICH_OPTIONS,
@@ -696,6 +698,7 @@ def admin():
 
 # Called in admin.js from courseStudents to populate  the list of students
 # eBookConfig.getCourseStudentsURL
+# Deprecated -- use /ns/auth/course_students
 @auth.requires_login()
 def course_students():
     response.headers["content-type"] = "application/json"
@@ -1465,7 +1468,7 @@ def question_text():
         q_text = f"Error: Could not find source for {qname} in the database"
 
     logger.debug(q_text)
-    logger.debug(f"is_private = {is_private} from {res.is_private}")
+    logger.debug(f"is_private = {is_private}")
     return json.dumps({"question_text": q_text, "is_private": is_private})
 
 

@@ -53,7 +53,7 @@ from rsptx.db.crud import (
     is_server_feedback,
     update_selected_question,
 )
-from rsptx.response_helpers.core import make_json_response
+from rsptx.response_helpers.core import make_json_response, canonical_utcnow
 from rsptx.db.models import runestone_component_dict
 from rsptx.validation.schemas import AssessmentRequest, SelectQRequest
 from rsptx.auth.session import is_instructor, auth_manager
@@ -205,7 +205,7 @@ async def getaggregateresults(request: Request, div_id: str, course_name: str):
     # results there to the last 90 days.
     course = await fetch_course(course_name)
     if course.course_name == course.base_course:
-        start_date = datetime.datetime.utcnow() - datetime.timedelta(days=90)
+        start_date = canonical_utcnow() - datetime.timedelta(days=90)
     else:
         start_date = course.term_start_date
 
@@ -393,13 +393,17 @@ async def get_question_source(request: Request, request_data: SelectQRequest):
     # the points from the assignment anyway.
     if assignment_name:
         aq = await fetch_assignment_question(assignment_name, selector_id)
-        ui_points = aq.points
+        if aq:
+            ui_points = aq.points
+        else:
+            ui_points = None
         rslogger.debug(
             f"Assignment Points for {assignment_name}, {selector_id} = {ui_points}"
         )
         if ui_points:
             points = ui_points
-
+        else:
+            points = 0
     questionlist = await fetch_matching_questions(request_data)
 
     if not questionlist:
