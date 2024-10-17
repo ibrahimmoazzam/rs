@@ -97,8 +97,34 @@ function connect(event) {
                         }
                     }, 1000);
                     break;
-                case "enableVote":
-                    console.log("Got enableVote message");
+                case "enableVote1":
+                    console.log("Got enableVote1 message");
+                    window.componentMap[currentQuestion].submitButton.disabled = false;
+                    window.componentMap[currentQuestion].submitButton.innerHTML =
+                        "Submit";
+                    window.componentMap[currentQuestion].enableInteraction();
+                    if (typeof studentVoteCount !== "undefined") {
+                        studentVoteCount += 1;
+                        if (studentVoteCount > 2) {
+                            studentVoteCount = 2;
+                            console.log("WARNING: resetting studentVoteCount to 2");
+                        }
+                        // set a timer to check if the student hasn't voted in 10 seconds
+                        // give them a warning.
+                        setTimeout(() => {
+                            if (studentVoteCount > 1 && !vote2done && !alertSet) {
+                                alert(
+                                    "You must vote twice! Even if want to keep your answer the same."
+                                );
+                                alertSet = true;
+                            }
+                        }, 10000);
+                    }
+                    messarea = document.getElementById("imessage");
+                    messarea.innerHTML = `<h3>Time to make your 1st vote</h3>`;
+                    break;
+                case "enableVote2":
+                    console.log("Got enableVote2 message");
                     window.componentMap[currentQuestion].submitButton.disabled = false;
                     window.componentMap[currentQuestion].submitButton.innerHTML =
                         "Submit";
@@ -287,6 +313,28 @@ async function sendMessage(event) {
     // not needed for onclick event.preventDefault()
 }
 
+function startVote1(event) {
+    let butt = document.querySelector("#vote0");
+    butt.classList.replace("btn-info", "btn-secondary");
+    event.srcElement.disabled = true;
+    voteNum += 1;
+    startTime = new Date().toUTCString();
+    let mess = {
+        type: "control",
+        sender: `${user}`,
+        message: "enableVote1",
+        broadcast: true,
+        course_name: eBookConfig.course,
+    };
+    //ws.send(JSON.stringify(mess));
+    publishMessage(mess);
+
+    // Enabling the "Stop Vote 1" button once Vote 1 begins
+    document.querySelector("#vote1").disabled = false;
+    let counterel = document.querySelector("#counter1");
+    counterel.innerHTML = "<p>Vote 1 Answers: 0</p>";
+}
+
 function warnAndStopVote(event) {
     let mess = {
         type: "control",
@@ -380,7 +428,7 @@ function startVote2(event) {
     let mess = {
         type: "control",
         sender: `${user}`,
-        message: "enableVote",
+        message: "enableVote2",
         broadcast: true,
         course_name: eBookConfig.course,
     };
